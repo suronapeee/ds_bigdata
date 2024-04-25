@@ -1,0 +1,35 @@
+# Use Red Hat 9 as the base image
+FROM centos:9
+
+# Update packages and install necessary dependencies
+RUN yum update -y && \
+    yum install -y wget net-tools grubby && \
+    grubby --update-kernel ALL --args selinux=0 && \
+    yum install -y java-1.8.0-openjdk-devel && \
+    yum clean all
+
+# Download Scala and Spark
+RUN wget https://downloads.lightbend.com/scala/2.13.0/scala-2.13.0.rpm && \
+    wget https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz && \
+    rpm -ivh scala-2.13.0.rpm && \
+    mkdir -p /opt/cluster && \
+    tar -xzvf spark-3.3.1-bin-hadoop3.tgz -C /opt/cluster/ && \
+    ln -s /opt/cluster/spark-3.3.1-bin-hadoop3 /opt/cluster/spark
+
+# Set environment variables
+ENV SPARK_HOME=/opt/cluster/spark
+ENV JAVA_HOME=/usr/lib/jvm/java
+ENV PYSPARK_PYTHON=/usr/bin/python3
+ENV PATH=$SPARK_HOME/bin/:$JAVA_HOME/bin/:$PATH:$PYSPARK_PYTHON
+
+# Set the working directory
+WORKDIR /app
+
+# Copy necessary files
+COPY main.py .env diabetes_model.sav requirements.txt ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Specify the command to run the application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "6"]
